@@ -106,6 +106,9 @@ custom element inside its own page without going through the host.
 - **[Features](./features.md)** — what each team ships, the
   fragments they expose, the events they emit, and the cross-remote
   dependencies between them.
+- **[Docker & CI](./architecture.md#docker--containerisation)** —
+  multi-stage Docker builds, local compose, and the branch-aware Azure
+  Pipeline.
 
 ## Where does X live?
 
@@ -134,4 +137,11 @@ custom element inside its own page without going through the host.
 | Federation config (per app)                  | `projects/<app>/federation.config.mjs`                                    |
 | Runtime remote discovery                     | `projects/<app>/public/federation.manifest.json`                          |
 | Per-environment values                       | `projects/<app>/public/env.config.json`                                   |
-| Team boundary visualisation overlay          | `public/cdn/js/helper.js`                                                 |
+| Team boundary visualisation overlay          | `public/cdn/js/helper.js` |
+| Multi-stage Dockerfiles per app              | `zarf/docker/Dockerfile.host`, `.explore`, `.decide`, `.checkout` |
+| Docker Compose local dev                     | `zarf/docker/docker-compose.yml`                                      |
+| Nginx config (SPA fallback, security headers)| `zarf/docker/nginx/default.conf`                                      |
+| Docker runtime env-config injection          | `zarf/docker/docker-entrypoint.sh`                                    |
+| Azure CI pipeline (branch-aware)             | `zarf/docker/azure-pipelines.yml`                                     |
+| Docker-specific federation manifests         | `zarf/docker/manifests/`                                              |
+| `.dockerignore`                              | `<repo-root>/.dockerignore` (Docker resolves this from build context) |

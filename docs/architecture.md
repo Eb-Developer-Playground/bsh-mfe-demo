@@ -446,6 +446,128 @@ Two artefacts drive everything:
 that touch the bus during their own bootstrap (e.g. building channel
 handles) always find it there.
 
+## Docker & containerisation
+
+Each app ships a multi-stage Dockerfile under `zarf/docker/`. The setup
+is shared infrastructure — one nginx template, one entrypoint script,
+one compose file — with per-app Dockerfiles that differ only in the
+Angular project name.
+
+### Build stage — pnpm + esbuild
+
+Every Dockerfile follows the same pattern:
+
+```dockerfile
+# Stage 1 — install & build
+FROM node:22-alpine AS build
+ENV PNPM_HOME=/pnpm
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+WORKDIR /workspace
+
+# Install dependencies (layer caching)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Copy workspace source
+COPY angular.json tsconfig.json ./
+COPY libs/ ./libs/
+COPY projects/host/ ./projects/host/          # <-- per-app
+COPY projects/explore/ ./projects/explore/    # <-- sibling projects (for workspace resolution)
+COPY projects/decide/ ./projects/decide/      # <-- shared contracts
+COPY projects/checkout/ ./projects/checkout/  # <-- shared contracts
+
+# Build
+ARG BASE_HREF=/
+RUN pnpm ng build host --base-href="${BASE_HREF}" --configuration=production
+```
+
+`pnpm install --frozen-lockfile` reproduces the exact dependency tree.
+Corepack pins `pnpm@10.33.0` explicitly so every build uses the same
+version regardless of the host system.
+
+`ng build` produces the app's `dist/` folder (plain static files). The
+build context is always the repo root (`../..` in compose terms), so
+`libs/` and `projects/` resolve the same way as they do in a local build.
+All sibling project directories are copied because they may declare
+contracts (types, test fixtures) referenced by the app being built.
+
+### Runtime stage — nginx (non-root)
+
+```dockerfile
+FROM nginx:alpine AS runtime
+RUN adduser -D -g '' -u 1001 nginxuser
+COPY zarf/docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY zarf/docker/docker-entrypoint.sh /docker-entrypoint.sh
+COPY --from=build /workspace/dist/host/browser/ /usr/share/nginx/html/
+RUN chown -R nginxuser:nginxuser /usr/share/nginx/html /var/cache/nginx /var/run
+USER nginxuser
+ENTRYPOINT ["/docker-entrypoint.sh"]
+```
+
+The nginx config (`zarf/docker/nginx/default.conf`) handles:
+
+- **SPA fallback** — all paths that don't match a static file rewrite
+  to `/index.html` so deep links work in the browser.
+- **CORS headers** — `Access-Control-Allow-Origin: *` is set on all
+  static assets and federation manifests so remotes can load each
+  other's resources cross-origin.
+- **Cache strategy** — hashed assets (`*.js`, `*.css`, images, fonts)
+  get `Cache-Control: public, immutable` with a 1-year expiry. The
+  shell `index.html`, `env.config.json`, and `federation.manifest.json`
+  are never cached so changes take effect immediately.
+- **Security headers** — `X-Frame-Options`, `X-Content-Type-Options`,
+  `X-XSS-Protection`, `Referrer-Policy`.
+
+The entrypoint script (`zarf/docker/docker-entrypoint.sh`) reads
+environment variables at container start and writes a fresh
+`/usr/share/nginx/html/env.config.json` before handing control to
+nginx. This means the **same image** can be deployed to dev, staging,
+and production — no rebuild, just different `-e` flags.
+
+### Local development with Docker Compose
+
+`zarf/docker/docker-compose.yml` boots all four apps and the CDN on a
+shared bridge network:
+
+| Service         | Port | Container name     | Dockerfile                  |
+| --------------- | ---- | ------------------ | --------------------------- |
+| host (shell)    | 4200 | tractor-host       | `Dockerfile.host`           |
+| explore         | 4201 | tractor-explore    | `Dockerfile.explore`        |
+| decide          | 4202 | tractor-decide     | `Dockerfile.decide`         |
+| checkout        | 4203 | tractor-checkout   | `Dockerfile.checkout`       |
+| cdn (fonts/img) | 3000 | tractor-cdn        | (nginx-only, no build step) |
+
+Each app container mounts a Docker-specific federation manifest
+from `zarf/docker/manifests/` that points sibling remotes at the
+published `localhost:420N` ports (e.g. `http://localhost:4201/remoteEntry.json`).
+Since the containers publish those ports to the host network, sibling
+remotes resolve each other through the Docker bridge.
+The CDN volume mounts `../../public/` so all apps share fonts and images.
+
+```bash
+cd zarf/docker
+docker compose up --build
+```
+
+### Azure Pipeline (branch-aware)
+
+`zarf/docker/azure-pipelines.yml` builds and pushes images to Azure
+Container Registry. It uses branch-name heuristics to decide which app
+to build:
+
+| Branch pattern                  | Builds            |
+| ------------------------------- | ----------------- |
+| `feature/host-*` / `fix/host-*` | `host` only       |
+| `feature/explore-*` / etc.      | matching app only |
+| `main`                          | all four          |
+
+The pipeline accepts an explicit `app` parameter to override detection,
+so a developer can trigger a targeted build from any branch.
+
+See the project [README](../README.md#deployment) for the full pipeline
+configuration and prerequisites.
+
 ## Native Federation vs. Module Federation
 
 Native Federation is the standards-based alternative to webpack's
@@ -563,3 +685,5 @@ federation config: a remote that wants something not in `shared` /
   boundary navigable without coupling.
 - [Features](./features.md) — concrete catalogue of what each remote
   ships and which events it speaks.
+- [Docker & CI](../README.md#deployment) — multi-stage builds, local
+  compose setup, and the Azure Pipeline.
