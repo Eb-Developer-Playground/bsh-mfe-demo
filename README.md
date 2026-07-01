@@ -84,6 +84,7 @@ tractor-store/
 │   ├── federation/   # @ng-internal/federation — env config, CDN helper, slice loader factory
 │   ├── logging/      # @ng-internal/logging    — console logger service
 │   └── ui/           # @ng-internal/ui         — buttons, spinner
+├── docs/             # Architecture, navigation, and feature docs — start here
 ├── public/cdn/       # Static fonts and images (served at :3000 in dev)
 └── zarf/docker/      # Docker & CI — Dockerfiles, compose, Azure Pipeline, manifests
 ```
@@ -225,5 +226,9 @@ Open follow-ups:
 - [ ] Wire a real backend instead of static fixtures.
 
 ## About the authors
+
+[Owen Adirah](Owen Adirah)
+
+[Nakokonya Gibson Silali](Nakokonya Gibson Silali)
 
 [The Native Federation team](https://native-federation.com/)
