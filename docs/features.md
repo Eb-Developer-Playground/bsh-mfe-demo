@@ -7,12 +7,12 @@ lives or what would break if you renamed an `mfe-*` tag.
 
 ## Teams at a glance
 
-| Team       | Remote name              | Port | Colour    | Owns                               |
-| ---------- | ------------------------ | ---- | --------- | ---------------------------------- |
-| Explore    | `@tractor-store/explore` | 4201 | `#FF5A54` | Catalog, recommendations, chrome   |
-| Decide     | `@tractor-store/decide`  | 4202 | `#53FF90` | Product detail                     |
-| Checkout   | `@tractor-store/checkout`| 4203 | `#FFDE54` | Cart, checkout flow, mini-cart     |
-| Host       | `@tractor-store/host`    | 4200 | `#7A7A7A` | URL, login, route protection        |
+| Team       | Remote name              | Port | Colour    | Owns                               | Dockerfile                     |
+| ---------- | ------------------------ | ---- | --------- | ---------------------------------- | ------------------------------ |
+| Explore    | `@tractor-store/explore` | 4201 | `#FF5A54` | Catalog, recommendations, chrome   | `Dockerfile.explore`           |
+| Decide     | `@tractor-store/decide`  | 4202 | `#53FF90` | Product detail                     | `Dockerfile.decide`            |
+| Checkout   | `@tractor-store/checkout`| 4203 | `#FFDE54` | Cart, checkout flow, mini-cart     | `Dockerfile.checkout`          |
+| Host       | `@tractor-store/host`    | 4200 | `#7A7A7A` | URL, login, route protection       | `Dockerfile.host`              |
 
 The host runs on port 4200 and owns the URL. Colours are used by the
 boundary-overlay debugging script described in
@@ -266,6 +266,32 @@ used at bootstrap inside each remote's `main.ts`, so bundling it
 locally avoids load-order puzzles and keeps the slice loader
 self-sufficient.
 
+## Docker images
+
+Each app has a multi-stage Dockerfile under `zarf/docker/` that builds
+with pnpm and serves via nginx. The Dockerfiles share a common nginx
+config (`zarf/docker/nginx/default.conf`) and entrypoint script
+(`zarf/docker/docker-entrypoint.sh`) that injects runtime environment
+variables — no image rebuild needed per environment.
+
+| Dockerfile              | Builds `dist/` folder          | Container name  |
+| ----------------------- | ------------------------------ | --------------- |
+| `Dockerfile.host`       | `projects/host/dist/`          | tractor-host    |
+| `Dockerfile.explore`    | `projects/explore/dist/`       | tractor-explore |
+| `Dockerfile.decide`     | `projects/decide/dist/`        | tractor-decide  |
+| `Dockerfile.checkout`   | `projects/checkout/dist/`      | tractor-checkout|
+
+The `docker compose` environment at `zarf/docker/docker-compose.yml`
+boots all four apps plus a shared CDN container on a single bridge
+network. Docker-specific federation manifests
+(`zarf/docker/manifests/`) point sibling remotes to container-hostnames
+so discovery works inside the compose network.
+
+Images are built and pushed to Azure Container Registry by the
+branch-aware pipeline at `zarf/docker/azure-pipelines.yml`. See the
+project [README](../README.md#deployment) for branch conventions and
+prerequisites.
+
 ## See also
 
 - [Architecture](./architecture.md) — how custom elements, the event
@@ -274,3 +300,5 @@ self-sufficient.
   protected routes, login redirect, and auth channels.
 - [Navigation](./navigation.md) — how the intent system makes the
   cross-remote loads in this catalogue possible without coupling.
+- [Docker & CI](../README.md#deployment) — multi-stage builds, local
+  compose setup, and the Azure Pipeline.

@@ -56,8 +56,9 @@ if you want the why and how.
 | 🎨 Styling                  | Self-contained SCSS (one bundle per remote)             |
 | 🍱 Design system            | Shared UI library (`@ng-internal/ui`)                   |
 | 🔮 Discovery                | Runtime manifest (`federation.manifest.json`)           |
-| 🚚 Deployment               | Static (GitHub Pages, GitHub Actions)                   |
-| 👩‍💻 Local development        | [angular-cli], [concurrently], [http-server]            |
+| 🚚 Deployment               | Docker images via Azure Container Registry & Azure Pipelines |
+| 🐳 Containerisation          | Multi-stage Docker builds per app, `docker compose` for local dev |
+| 👩‍💻 Local development        | [angular-cli], [concurrently], [http-server], or `docker compose` |
 
 [angular]: https://angular.dev/
 [@angular/elements]: https://angular.dev/guide/elements
@@ -83,7 +84,9 @@ tractor-store/
 │   ├── federation/   # @ng-internal/federation — env config, CDN helper, slice loader factory
 │   ├── logging/      # @ng-internal/logging    — console logger service
 │   └── ui/           # @ng-internal/ui         — buttons, spinner
-└── public/cdn/       # Static fonts and images (served at :3000 in dev)
+├── docs/             # Architecture, navigation, and feature docs — start here
+├── public/cdn/       # Static fonts and images (served at :3000 in dev)
+└── zarf/docker/      # Docker & CI — Dockerfiles, compose, Azure Pipeline, manifests
 ```
 
 Each remote exposes a handful of fragments (e.g. `mfe-cart`, `mfe-header`,
@@ -134,20 +137,80 @@ pnpm ng test host --watch=false
 
 [Vitest]: https://vitest.dev/
 
+### Docker
+
+Each app has a multi-stage Dockerfile that builds with pnpm and serves via
+nginx. A `docker compose` setup runs all four apps and the CDN together:
+
+```bash
+cd zarf/docker
+docker compose up --build
+open http://localhost:4200
+```
+
+The compose environment mounts Docker-specific federation manifests
+(`zarf/docker/manifests/`) so sibling remotes discover each other
+through the published `localhost:420N` ports. Runtime configuration
+is handled by `docker-entrypoint.sh`, which reads environment variables
+at container start to override `env.config.json` — no image rebuild
+needed for different environments.
+
+Each service:
+| Service         | Port | Container name     |
+| --------------- | ---- | ------------------ |
+| host (shell)    | 4200 | tractor-host       |
+| explore         | 4201 | tractor-explore    |
+| decide          | 4202 | tractor-decide     |
+| checkout        | 4203 | tractor-checkout   |
+| cdn (fonts/img) | 3000 | tractor-cdn        |
+
 ## Deployment
 
-The app is published to GitHub Pages by
-[`.github/workflows/deploy-tractor-store.yml`](../../.github/workflows/deploy-tractor-store.yml)
-on every push to `main` that touches `angular/tractor-store/**`. The workflow:
+Docker images are built and pushed to Azure Container Registry by
+[`zarf/docker/azure-pipelines.yml`](./zarf/docker/azure-pipelines.yml).
 
-1. Builds the four apps with the appropriate `--base-href`.
-2. Assembles a single `_site/` directory with `host` at the root and the
-   remotes under `/explore`, `/decide`, `/checkout`.
-3. Rewrites the `env.config.json` files so each app discovers its
-   siblings via the deployed base path.
-4. Pushes the result to the `gh-pages` branch.
+### Branch convention
 
-Trigger a deploy manually from the **Actions** tab via _Run workflow_.
+The pipeline detects which app to build from the branch name:
+
+| Branch pattern                 | Builds            |
+| ------------------------------ | ----------------- |
+| `feature/host-*` / `fix/host-*` | `host` only       |
+| `feature/explore-*` / `fix/explore-*` | `explore` only       |
+| `feature/decide-*` / `fix/decide-*` | `decide` only        |
+| `feature/checkout-*` / `fix/checkout-*` | `checkout` only      |
+| `main`                         | All four apps     |
+
+Create branches like `feature/host-product-card` or `fix/explore-search`
+and the pipeline will build only that app's Docker image.
+
+### Manual trigger (override)
+
+```bash
+az pipelines run --name "docker-build" --parameters app=explore
+```
+
+### What each run does
+
+1. Detects the target app (or apps on `main`) from the branch.
+2. Logs into ACR via variable group credentials.
+3. Builds `zarf/docker/Dockerfile.<app>` with the repo root as build context.
+4. Tags and pushes as `$(acrName)/$(app):$(Build.BuildId)` + `:latest`.
+
+### Prerequisites
+
+Create an Azure DevOps [variable group](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/variable-groups)
+named `acr-connection`:
+
+| Variable       | Description                            |
+| -------------- | -------------------------------------- |
+| `acrName`      | Registry URL (`myregistry.azurecr.io`) |
+| `acrUsername`  | Service principal or admin username    |
+| `acrPassword`  | Service principal or admin password    |
+| `acrRepository`| Optional — image repo name (defaults to the app name) |
+
+Alternatively, uncomment the `AzureCLI@2` task in the pipeline to use a
+service connection instead of static credentials.
 
 ## Scope and limitations
 
@@ -163,5 +226,9 @@ Open follow-ups:
 - [ ] Wire a real backend instead of static fixtures.
 
 ## About the authors
+
+[Owen Adirah](Owen Adirah)
+
+[Nakokonya Gibson Silali](Nakokonya Gibson Silali)
 
 [The Native Federation team](https://native-federation.com/)
