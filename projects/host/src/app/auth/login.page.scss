@@ -1,0 +1,76 @@
+:host {
+  display: block;
+}
+
+.h_LoginPage {
+  margin: 0 auto;
+  max-width: calc(680px + var(--outer-space) * 2);
+  padding: 4rem var(--outer-space);
+}
+
+.h_LoginPage__panel {
+  border: 1px solid #eeebe2;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.06);
+  padding: 2rem;
+}
+
+.h_LoginPage__eyebrow {
+  margin: 0 0 0.75rem;
+  color: #5e584b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.h_LoginPage__title {
+  margin: 0 0 1rem;
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.h_LoginPage__summary {
+  margin: 0 0 2rem;
+  max-width: 42rem;
+  line-height: 1.6;
+}
+
+.h_LoginPage__returnUrl {
+  font-weight: 700;
+}
+
+.h_LoginPage__fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.h_LoginPage__label {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.h_LoginPage__input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 1rem;
+}
+
+.h_LoginPage__buttons {
+  margin: 2.5rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  flex-direction: row-reverse;
+}

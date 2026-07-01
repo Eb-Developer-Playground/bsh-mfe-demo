@@ -1,0 +1,41 @@
+<header class="e_Header" data-boundary="explore">
+  <div class="e_Header__cutter">
+    <div class="e_Header__inner">
+      <a class="e_Header__link" [appNavigateTo]="'explore.home'">
+        <img
+          class="e_Header__logo"
+          [src]="logoUrl"
+          alt="Micro Frontends - Tractor Store"
+        />
+      </a>
+      <div class="e_Header__navigation">
+        <app-navigation></app-navigation>
+      </div>
+      <div class="e_Header__auth">
+        <div class="e_Header__authSummary">
+          <span class="e_Header__authBadge" [class.e_Header__authBadge--active]="isAuthenticated()">
+            {{ authStatus() }}
+          </span>
+          @if (isAuthenticated()) {
+            <p class="e_Header__authLabel">
+              Signed in as <strong>{{ displayName() }}</strong>
+            </p>
+          } @else {
+            <p class="e_Header__authLabel">Guest session active</p>
+          }
+        </div>
+        <div class="e_Header__authActions">
+          <button class="e_Header__authButton" type="button" (click)="login()">
+            Simulate login
+          </button>
+          <button class="e_Header__authButton" type="button" (click)="logout()">
+            Simulate logout
+          </button>
+        </div>
+      </div>
+      <div class="e_Header__cart">
+        <mfe-mini-cart></mfe-mini-cart>
+      </div>
+    </div>
+  </div>
+</header>

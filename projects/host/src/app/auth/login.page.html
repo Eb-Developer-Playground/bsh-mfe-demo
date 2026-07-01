@@ -1,0 +1,48 @@
+<main class="h_LoginPage">
+  <section class="h_LoginPage__panel" aria-labelledby="h_login_title">
+    <p class="h_LoginPage__eyebrow">Authentication required</p>
+    <h1 class="h_LoginPage__title" id="h_login_title">Sign in to continue</h1>
+    <p class="h_LoginPage__summary">
+      Continue to
+      <span class="h_LoginPage__returnUrl">{{ returnUrl() }}</span>
+      after completing the mock login.
+    </p>
+
+    <form class="h_LoginPage__form" [formGroup]="form" (submit)="onSubmit($event)">
+      <fieldset class="h_LoginPage__fieldset">
+        <div>
+          <label class="h_LoginPage__label" for="h_email">Email</label>
+          <input
+            class="h_LoginPage__input"
+            type="email"
+            id="h_email"
+            formControlName="email"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="h_LoginPage__label" for="h_password">Password</label>
+          <input
+            class="h_LoginPage__input"
+            type="password"
+            id="h_password"
+            formControlName="password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+      </fieldset>
+
+      <div class="h_LoginPage__buttons">
+        <ts-button type="submit" variant="primary" [disabled]="!canSubmit()">
+          Complete mock login
+        </ts-button>
+        <ts-button variant="secondary" [appNavigateTo]="'explore.home'">
+          Back to explore
+        </ts-button>
+      </div>
+    </form>
+  </section>
+</main>

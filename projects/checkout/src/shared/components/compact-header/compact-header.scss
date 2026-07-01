@@ -1,0 +1,90 @@
+:host {
+  min-height: 80px;
+  display: flex;
+  margin: 1rem 0 2rem;
+  border-bottom: 1px solid #eeebe2;
+  align-items: center;
+}
+
+.c_CompactHeader__inner {
+  display: flex;
+  max-width: calc(1000px + (2 * var(--outer-space)));
+  padding: 0 var(--outer-space);
+  margin: 0 auto;
+  align-items: center;
+  flex: 1;
+}
+
+.c_CompactHeader__logo {
+  display: block;
+  width: 175px;
+  aspect-ratio: 3.5;
+}
+
+.c_CompactHeader__auth {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.c_CompactHeader__authSummary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.c_CompactHeader__authBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 7rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #d9d5cb;
+  border-radius: 999px;
+  background: #f6f3ec;
+  color: #5e584b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.c_CompactHeader__authBadge--active {
+  border-color: #5c8a45;
+  background: #edf7e7;
+  color: #2f5b1d;
+}
+
+.c_CompactHeader__authLabel {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.c_CompactHeader__authActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.c_CompactHeader__authButton {
+  border: 1px solid #eeebe2;
+  background: linear-gradient(0deg, #f5f5f5, #fff);
+  color: #000;
+  cursor: pointer;
+  padding: 0.55rem 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.7rem;
+}
+
+.c_CompactHeader__authButton:hover,
+.c_CompactHeader__authButton:focus-visible {
+  outline: 2px solid #ff5a55;
+  outline-offset: 2px;
+}
