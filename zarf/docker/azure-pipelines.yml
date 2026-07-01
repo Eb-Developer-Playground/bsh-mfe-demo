@@ -1,0 +1,192 @@
+# =============================================================================
+# Azure DevOps Pipeline — Build & Push Docker Images to ACR
+#
+# Detects which MFE app to build from the branch name, then builds and pushes
+# its Docker image to Azure Container Registry.
+#
+# Branch convention:
+#   feature/host-xxx   → builds "host"
+#   feature/explore-xxx → builds "explore"
+#   feature/decide-xxx  → builds "decide"
+#   feature/checkout-xxx → builds "checkout"
+#   main                → builds all four apps
+#
+# Explicit override via parameter:
+#   az pipelines run --name "docker-build" --parameters app=explore
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+      - fix/*
+      - hotfix/*
+  paths:
+    include:
+      - projects/host/**
+      - projects/explore/**
+      - projects/decide/**
+      - projects/checkout/**
+      - libs/**
+      - zarf/docker/Dockerfile.*
+      - zarf/docker/docker-entrypoint.sh
+      - zarf/docker/nginx/*
+
+pr: none
+
+parameters:
+  - name: app
+    displayName: Application to build (leave empty to detect from branch)
+    type: string
+    default: ""
+    values:
+      - ""
+      - host
+      - explore
+      - decide
+      - checkout
+
+  - name: baseHref
+    displayName: Angular base-href
+    type: string
+    default: /
+
+  - name: dockerfile
+    displayName: Dockerfile to use (leave empty to auto-resolve)
+    type: string
+    default: ""
+
+variables:
+  # Container registry — set these in an Azure DevOps variable group named
+  # "acr-connection" in your project's Pipelines → Library.
+  # - group: acr-connection
+  #
+  # Variable group should contain:
+  #   acrName        = myregistry.azurecr.io
+  #   acrUsername    = service-principal-id
+  #   acrPassword    = service-principal-password
+  #   acrRepository  = tractor-store  (optional, defaults to app name)
+  #
+  # Example using managed identity instead:
+  #   dockerServiceConnection: "my-acr-service-connection"
+
+  # Registry suffix per app so images are addressable independently
+  - name: imageTag
+    value: "$(Build.BuildId)"
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  # ── Step 1 — Detect which app(s) to build ──────────────────────────────
+  - bash: |
+      set -euo pipefail
+
+      BRANCH="$(Build.SourceBranch)"
+      PARAM_APP="${{ parameters.app }}"
+
+      # Explicit parameter wins
+      if [ -n "$PARAM_APP" ]; then
+        echo "Using explicit parameter: app=$PARAM_APP"
+        echo "##vso[task.setvariable variable=detectedApps]$PARAM_APP"
+        echo "##vso[task.setvariable variable=isMain]false"
+        exit 0
+      fi
+
+      # Strip refs/heads/ prefix
+      BRANCH_NAME="${BRANCH#refs/heads/}"
+
+      # main branch builds everything
+      if [ "$BRANCH_NAME" = "main" ]; then
+        echo "Main branch — building all apps"
+        echo "##vso[task.setvariable variable=detectedApps]host explore decide checkout"
+        echo "##vso[task.setvariable variable=isMain]true"
+        exit 0
+      fi
+
+      # Extract app name from branch: feature/host-xxx, fix/explore-foo, hotfix/decide-bar
+      APP=""
+      case "$BRANCH_NAME" in
+        */host-* | */host/*)   APP="host" ;;
+        */explore-* | */explore/*) APP="explore" ;;
+        */decide-* | */decide/*)  APP="decide" ;;
+        */checkout-* | */checkout/*) APP="checkout" ;;
+      esac
+
+      if [ -z "$APP" ]; then
+        echo ""
+        echo "ERROR: Could not detect app from branch '$BRANCH_NAME'."
+        echo ""
+        echo "Branch naming convention:"
+        echo "  feature/host-xxx      → builds host"
+        echo "  feature/explore-xxx   → builds explore"
+        echo "  feature/decide-xxx    → builds decide"
+        echo "  feature/checkout-xxx  → builds checkout"
+        echo "  main                  → builds all four"
+        echo ""
+        echo "Override with explicit parameter:"
+        echo "  az pipelines run --parameters app=explore"
+        exit 1
+      fi
+
+      echo "Detected app: $APP from branch '$BRANCH_NAME'"
+      echo "##vso[task.setvariable variable=detectedApps]$APP"
+      echo "##vso[task.setvariable variable=isMain]false"
+    displayName: "Detect app(s) from branch"
+
+  # ── Step 2 — Log into ACR ──────────────────────────────────────────────
+  - script: |
+      echo "$(acrPassword)" | docker login "$(acrName)" \
+        --username "$(acrUsername)" --password-stdin
+    displayName: "Docker login to ACR"
+    condition: and(succeeded(), ne(variables['acrName'], ''))
+    env:
+      ACR_PASSWORD: $(acrPassword)
+
+  # ── Step 3 — Build & push each detected app ────────────────────────────
+  - ${{ each a in split('host,explore,decide,checkout', ',') }}:
+    - task: Bash@3
+      displayName: "Build & push ${{ a }}"
+      condition: |
+        and(
+          succeeded(),
+          contains(variables['detectedApps'], '${{ a }}')
+        )
+      inputs:
+        targetType: inline
+        script: |
+          set -euo pipefail
+
+          APP="${{ a }}"
+          DOCKERFILE="${{ parameters.dockerfile }}"
+
+          # Auto-resolve dockerfile if not explicitly set
+          if [ -z "$DOCKERFILE" ]; then
+            DOCKERFILE="zarf/docker/Dockerfile.${APP}"
+          fi
+
+          IMAGE_NAME="${APP}"
+          REPO="$(acrRepository)"
+          if [ -z "$REPO" ]; then
+            REPO="${IMAGE_NAME}"
+          fi
+
+          echo "──────────────────────────────────────────────"
+          echo "  App:       ${APP}"
+          echo "  Dockerfile: ${DOCKERFILE}"
+          echo "  Tag:       $(acrName)/${REPO}:$(imageTag)"
+          echo "──────────────────────────────────────────────"
+
+          docker build \
+            --file "${DOCKERFILE}" \
+            --tag "$(acrName)/${REPO}:$(imageTag)" \
+            --tag "$(acrName)/${REPO}:latest" \
+            --build-arg "BASE_HREF=${{ parameters.baseHref }}" \
+            .
+
+          docker push "$(acrName)/${REPO}:$(imageTag)"
+          docker push "$(acrName)/${REPO}:latest"
+
+          echo "Done — ${APP} built and pushed."
+        workingDirectory: "$(System.DefaultWorkingDirectory)"
